@@ -1,0 +1,51 @@
+# This name will appear in the GitHub Actions UI
+name: Multi-Platform Matrix Build
+
+# Triggers the workflow on 'push' events and also allows manual runs ('workflow_dispatch')
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  # Define a job named 'build-and-artifact'
+  build-and-artifact:
+    # This job will run on the operating system specified by the matrix variable
+    runs-on: ${{ matrix.os }}
+
+    # Define the build matrix
+    strategy:
+      matrix:
+        # Create 3 variants based on the operating system
+        # This will spin up three separate jobs in parallel.
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      # Step 1: Check out the repository's code
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Step 2: A step with the required identifier
+      # This satisfies the requirement for a step with id: matrix-54227a3
+      - name: Log the platform
+        id: matrix-54227a3
+        run: echo "Building on platform: ${{ matrix.os }}"
+
+      # Step 3: Generate a unique, non-empty artifact for this job
+      # We use 'shell: bash' to ensure the 'echo' command is consistent
+      # even on the Windows runner (which defaults to pwsh).
+      - name: Generate build artifact
+        shell: bash
+        run: |
+          echo "This is the unique build output for ${{ matrix.os }}."
+          echo "Generated at $(date)" > build-output.txt
+
+      # Step 4: Upload the generated file as an artifact
+      # Uses the standard action for uploading artifacts
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # The artifact name is dynamically generated using the matrix variable
+          # This satisfies the 'build-54227a3-<variant>' requirement
+          name: build-54227a3-${{ matrix.os }}
+          # The path to the file we want to upload
+          path: build-output.txt
