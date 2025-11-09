@@ -1,51 +1,62 @@
-# This name will appear in the GitHub Actions UI
-name: Multi-Platform Matrix Build
+name: Matrix Build with Artifacts
 
-# Triggers the workflow on 'push' events and also allows manual runs ('workflow_dispatch')
 on:
   push:
+  pull_request:
   workflow_dispatch:
 
 jobs:
-  # Define a job named 'build-and-artifact'
-  build-and-artifact:
-    # This job will run on the operating system specified by the matrix variable
-    runs-on: ${{ matrix.os }}
-
-    # Define the build matrix
+  build:
+    # 3 parallel variants across OSes (multi-platform)
     strategy:
+      fail-fast: false
       matrix:
-        # Create 3 variants based on the operating system
-        # This will spin up three separate jobs in parallel.
         os: [ubuntu-latest, macos-latest, windows-latest]
 
+    runs-on: ${{ matrix.os }}
+
+    # Use bash everywhere so steps are identical on all OSes
+    defaults:
+      run:
+        shell: bash
+
     steps:
-      # Step 1: Check out the repository's code
-      - name: Check out repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # Step 2: A step with the required identifier
-      # This satisfies the requirement for a step with id: matrix-54227a3
-      - name: Log the platform
-        id: matrix-54227a3
-        run: echo "Building on platform: ${{ matrix.os }}"
-
-      # Step 3: Generate a unique, non-empty artifact for this job
-      # We use 'shell: bash' to ensure the 'echo' command is consistent
-      # even on the Windows runner (which defaults to pwsh).
-      - name: Generate build artifact
-        shell: bash
+      # REQUIRED IDENTIFIER STEP
+      - name: matrix-54227a3
         run: |
-          echo "This is the unique build output for ${{ matrix.os }}."
-          echo "Generated at $(date)" > build-output.txt
+          echo "Matrix variant OS=${{ matrix.os }}"
+          echo "Runner OS is $RUNNER_OS"
 
-      # Step 4: Upload the generated file as an artifact
-      # Uses the standard action for uploading artifacts
+      - name: Generate build artifact (JSON)
+        run: |
+          mkdir -p dist
+          outfile="dist/artifact-${{ matrix.os }}.json"
+          cat > "$outfile" <<'JSON'
+          {
+            "note": "Non-empty build artifact for validation",
+            "schema": 1
+          }
+          JSON
+          # Append dynamic info so each is unique and clearly non-empty
+          {
+            printf ',\n  "variant_os": "%s"' "${{ matrix.os }}"
+            printf ',\n  "runner_os": "%s"' "$RUNNER_OS"
+            printf ',\n  "run_id": "%s"' "$GITHUB_RUN_ID"
+            printf ',\n  "sha": "%s"' "$GITHUB_SHA"
+            printf ',\n  "timestamp_utc": "%s"' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            printf '\n}\n'
+          } >> "$outfile"
+          # Sanity check: file must be non-empty
+          test -s "$outfile"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          # The artifact name is dynamically generated using the matrix variable
-          # This satisfies the 'build-54227a3-<variant>' requirement
+          # REQUIRED prefix: build-54227a3-<variant>
           name: build-54227a3-${{ matrix.os }}
-          # The path to the file we want to upload
-          path: build-output.txt
+          path: dist/artifact-${{ matrix.os }}.json
+          if-no-files-found: error
+          retention-days: 7
